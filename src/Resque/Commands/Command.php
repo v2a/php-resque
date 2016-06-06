@@ -147,7 +147,7 @@ class Command extends \Symfony\Component\Console\Command\Command {
 			try {
 				require_once $includeFile;
 
-			} catch (\Exception $e) {
+			} catch (\Throwable $e) {
 				throw new \RuntimeException('The include file "'.$include.'" threw an exception: "'.$e->getMessage().'" on line '.$e->getLine());
 			}
 		}
@@ -158,7 +158,7 @@ class Command extends \Symfony\Component\Console\Command\Command {
 			Resque\Event::listen('*', function($event) use ($output) {
 				$data = array_map(
 					function($d) {
-						$d instanceof \Exception and ($d = '"'.$d->getMessage().'"');
+						$d instanceof \Throwable and ($d = '"'.$d->getMessage().'"');
 						is_array($d) and ($d = '['.implode(',', $d).']');
 
 						return (string)$d;

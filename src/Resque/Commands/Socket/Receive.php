@@ -103,7 +103,7 @@ class Receive extends Command {
 						'json'  => $input->getOption('json'),
 					);
 					
-				} catch (\Exception $e) {
+				} catch (\Throwable $e) {
 					$server->send($client, 'Command error: '.$e->getMessage());
 					return;
 				}
