@@ -1,5 +1,6 @@
 <?php
-/**
+
+/*
  * This file is part of the php-resque package.
  *
  * (c) Michael Haynes <mike@mjphaynes.com>
@@ -7,286 +8,339 @@
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
+
 namespace Resque;
 
 use Predis;
-use Resque\Helpers\Stats;
 
 /**
  * Resque redis class
  *
  * @author Michael Haynes <mike@mjphaynes.com>
  */
-class Redis {
+class Redis
+{
 
-	/**
-	 * Default Redis connection scheme
-	 */
-	const DEFAULT_SCHEME = 'tcp';
+    /**
+     * Default Redis connection scheme
+     */
+    const DEFAULT_SCHEME = 'tcp';
 
-	/**
-	 * Default Redis connection host
-	 */
-	const DEFAULT_HOST = '127.0.0.1';
+    /**
+     * Default Redis connection host
+     */
+    const DEFAULT_HOST = '127.0.0.1';
 
-	/**
-	 * Default Redis connection port
-	 */
-	const DEFAULT_PORT = 6379;
+    /**
+     * Default Redis connection port
+     */
+    const DEFAULT_PORT = 6379;
 
-	/**
-	 * Default Redis namespace
-	 */
-	const DEFAULT_NS = 'resque';
+    /**
+     * Default Redis namespace
+     */
+    const DEFAULT_NS = 'resque';
 
-	/**
-	* Default Redis AUTH password
-	*/
-	const DEFAULT_PASSWORD = null;
+    /**
+     * Default Redis AUTH password
+     */
+    const DEFAULT_PASSWORD = null;
 
-	/**
-	 * Default Redis Read Write Timeout
-	 */
-	const DEFAULT_RW_TIMEOUT = 60;
+    /**
+     * Default Redis Read Write Timeout
+     */
+    const DEFAULT_RW_TIMEOUT = 60;
 
-	/**
-	 * @var array Default configuration
-	 */
-	protected static $config = array(
-		'scheme'    => self::DEFAULT_SCHEME,
-		'host'      => self::DEFAULT_HOST,
-		'port'      => self::DEFAULT_PORT,
-		'namespace' => self::DEFAULT_NS,
-		'password'  => self::DEFAULT_PASSWORD,
-		'rw_timeout' => self::DEFAULT_RW_TIMEOUT,
-	);
+    /**
+     * Default Redis option for using phpiredis or not
+     */
+    const DEFAULT_PHPIREDIS = false;
 
-	/**
-	 * @var Redis Redis instance
-	 */
-	protected static $instance = null;
+    /**
+     * @var array Default configuration
+     */
+    protected static $config = array(
+        'scheme'     => self::DEFAULT_SCHEME,
+        'host'       => self::DEFAULT_HOST,
+        'port'       => self::DEFAULT_PORT,
+        'namespace'  => self::DEFAULT_NS,
+        'password'   => self::DEFAULT_PASSWORD,
+        'rw_timeout' => self::DEFAULT_RW_TIMEOUT,
+        'phpiredis'  => self::DEFAULT_PHPIREDIS,
+    );
 
-	/**
-	 * Establish a Redis connection
-	 *
-	 * @return Redis
-	 */
-	public static function instance() {
-		if (!static::$instance) {
-			static::$instance = new static(static::$config);
-		}
+    /**
+     * @var Redis Redis instance
+     */
+    protected static $instance = null;
 
-		return static::$instance;
-	}
+    /**
+     * Establish a Redis connection
+     *
+     * @return Redis
+     */
+    public static function instance()
+    {
+        if (!static::$instance) {
+            static::$instance = new static(static::$config);
+        }
 
-	/**
-	 * Set the Redis config
-	 *
-	 * @param  array $config Array of configuration settings
-	 */
-	public static function setConfig(array $config) {
-		static::$config = array_merge(static::$config, $config);
-	}
+        return static::$instance;
+    }
 
-	/**
-	 * @var \Predis\Client  The Predis instance
-	 */
-	protected $redis;
+    /**
+     * Set the Redis config
+     *
+     * @param array $config Array of configuration settings
+     */
+    public static function setConfig(array $config)
+    {
+        static::$config = array_merge(static::$config, $config);
+    }
 
-	/**
-	 * @var string  Redis namespace
-	 */
-	protected $namespace;
+    /**
+     * @var \Predis\Client The Predis instance
+     */
+    protected $redis;
 
-	/**
-	 * @var array List of all commands in Redis that supply a key as their
-	 *	first argument. Used to prefix keys with the Resque namespace.
-	 */
-	protected $keyCommands = array(
-		'exists',
-		'del',
-		'type',
-		'keys',
-		'expire',
-		'ttl',
-		'move',
-		'set',
-		'setex',
-		'get',
-		'getset',
-		'setnx',
-		'incr',
-		'incrby',
-		'decr',
-		'decrby',
-		'rpush',
-		'lpush',
-		'llen',
-		'lrange',
-		'ltrim',
-		'lindex',
-		'lset',
-		'lrem',
-		'lpop',
-		'blpop',
-		'rpop',
-		'sadd',
-		'srem',
-		'spop',
-		'scard',
-		'sismember',
-		'smembers',
-		'srandmember',
-		'hdel',
-		'hexists',
-		'hget',
-		'hgetall',
-		'hincrby',
-		'hincrbyfloat',
-		'hkeys',
-		'hlen',
-		'hmget',
-		'hmset',
-		'hset',
-		'hsetnx',
-		'hvals',
-		'zadd',
-		'zrem',
-		'zrange',
-		'zrevrange',
-		'zrangebyscore',
-		'zrevrangebyscore',
-		'zcard',
-		'zscore',
-		'zremrangebyscore',
-		'sort',
-		// sinterstore
-		// sunion
-		// sunionstore
-		// sdiff
-		// sdiffstore
-		// sinter
-		// smove
-		// rename
-		// rpoplpush
-		// mget
-		// msetnx
-		// mset
-		// renamenx
-	);
+    /**
+     * @var string Redis namespace
+     */
+    protected $namespace;
 
-	/**
-	 * Establish a Redis connection.
-	 *
-	 * @param  array $config Array of configuration settings
-	 * @return Redis
-	 */
-	public function __construct(array $config = array()) {
-		// configuration options array
-		$options = array(
-			'scheme' => $config['scheme'],
-			'host'   => $config['host'],
-			'port'   => $config['port'],
-			'rw_timeout' => $config['rw_timeout'],
-		);
+    /**
+     * @var array List of all commands in Redis that supply a key as their
+     *            first argument. Used to prefix keys with the Resque namespace.
+     */
+    protected $keyCommands = array(
+        'exists',
+        'del',
+        'type',
+        'keys',
+        'expire',
+        'ttl',
+        'move',
+        'set',
+        'setex',
+        'get',
+        'getset',
+        'setnx',
+        'incr',
+        'incrby',
+        'decr',
+        'decrby',
+        'rpush',
+        'lpush',
+        'llen',
+        'lrange',
+        'ltrim',
+        'lindex',
+        'lset',
+        'lrem',
+        'lpop',
+        'blpop',
+        'rpop',
+        'sadd',
+        'srem',
+        'spop',
+        'scard',
+        'sismember',
+        'smembers',
+        'srandmember',
+        'hdel',
+        'hexists',
+        'hget',
+        'hgetall',
+        'hincrby',
+        'hincrbyfloat',
+        'hkeys',
+        'hlen',
+        'hmget',
+        'hmset',
+        'hset',
+        'hsetnx',
+        'hvals',
+        'zadd',
+        'zrem',
+        'zrange',
+        'zrevrange',
+        'zrangebyscore',
+        'zrevrangebyscore',
+        'zcard',
+        'zscore',
+        'zremrangebyscore',
+        'sort',
+        // sinterstore
+        // sunion
+        // sunionstore
+        // sdiff
+        // sdiffstore
+        // sinter
+        // smove
+        // rename
+        // rpoplpush
+        // mget
+        // msetnx
+        // mset
+        // renamenx
+    );
 
-		// setup password
-		if (!empty($config['password'])) {
-			$options['password'] = $config['password'];
-		}
+    /**
+     * Establish a Redis connection.
+     *
+     * @param  array $config Array of configuration settings
+     * @return Redis
+     */
+    public function __construct(array $config = array())
+    {
+        $predisParams  = array();
+        $predisOptions = array();
+        if (!empty($config['predis'])) {
+            $predisParams  = $config['predis']['config'];
+            $predisOptions = $config['predis']['options'];
+        } else {
+            foreach (array('scheme', 'host', 'port') as $key) {
+                if (!isset($config[$key])) {
+                    throw new \InvalidArgumentException("key '{$key}' is missing in redis configuration");
+                }
+            }
 
-		// create Predis client
-		$this->redis = new Predis\Client($options);
+            // non-optional configuration parameters
+            $predisParams = array(
+                'scheme' => $config['scheme'],
+                'host'   => $config['host'],
+                'port'   => $config['port'],
+            );
 
-		// setup namespace
-		if (!empty($config['namespace'])) {
-			$this->setNamespace($config['namespace']);
-		} else {
-			$this->setNamespace(self::DEFAULT_NS);
-		}
+            // setup password
+            if (!empty($config['password'])) {
+                $predisParams['password'] = $config['password'];
+            }
 
-		// Do this to test connection is working now rather than later
-		$this->redis->connect();
-	}
+            // setup read/write timeout
+            if (!empty($config['rw_timeout'])) {
+                $predisParams['read_write_timeout'] = $config['rw_timeout'];
+            }
 
-	/**
-	 * Set Redis namespace
-	 *
-	 * @param string $namespace New namespace
-	 */
-	public function setNamespace($namespace) {
-		if (substr($namespace, -1) !== ':') {
-			$namespace .= ':';
-		}
+            // setup predis client options
+            if (!empty($config['phpiredis'])) {
+                $predisOptions = array(
+                    'connections' => array(
+                        'tcp'  => 'Predis\Connection\PhpiredisStreamConnection',
+                        'unix' => 'Predis\Connection\PhpiredisSocketConnection',
+                    ),
+                );
+            }
+        }
 
-		$this->namespace = $namespace;
-	}
+        // create Predis client
+        $this->redis = $this->initializePredisClient($predisParams, $predisOptions);
 
-	/**
-	 * Get Redis namespace
-	 *
-	 * @return string
-	 */
-	public function getNamespace() {
-		return $this->namespace;
-	}
+        // setup namespace
+        if (!empty($config['namespace'])) {
+            $this->setNamespace($config['namespace']);
+        } else {
+            $this->setNamespace(self::DEFAULT_NS);
+        }
 
-	/**
-	 * Add Redis namespace to a string
-	 *
-	 * @param  string $string String to namespace
-	 * @return string
-	 */
-	public function addNamespace($string) {
-		if (is_array($string)) {
-			foreach ($string as &$str) {
- 				$str = $this->addNamespace($str);
-			}
+        // Do this to test connection is working now rather than later
+        $this->redis->connect();
+    }
 
-			return $string;
-		}
+    /**
+     * initialize the redis member with a predis client.
+     * isolated call for testability
+     * @param array $config predis config parameters
+     * @param array $options predis optional parameters
+     * @return null
+     */
+    public function initializePredisClient($config, $options)
+    {
+        return new Predis\Client($config, $options);
+    }
 
-		if (strpos($string, $this->namespace) !== 0) {
-			$string = $this->namespace.$string;
-		}
+    /**
+     * Set Redis namespace
+     *
+     * @param string $namespace New namespace
+     */
+    public function setNamespace($namespace)
+    {
+        if (substr($namespace, -1) !== ':') {
+            $namespace .= ':';
+        }
 
-		return $string;
-	}
+        $this->namespace = $namespace;
+    }
 
-	/**
-	 * Remove Redis namespace from string
-	 *
-	 * @param  string $string String to de-namespace
-	 * @return string
-	 */
-	public function removeNamespace($string) {
-		$prefix = $this->namespace;
+    /**
+     * Get Redis namespace
+     *
+     * @return string
+     */
+    public function getNamespace()
+    {
+        return $this->namespace;
+    }
 
-		if (substr($string, 0, strlen($prefix)) == $prefix) {
-			$string = substr($string, strlen($prefix), strlen($string));
-		}
+    /**
+     * Add Redis namespace to a string
+     *
+     * @param  string $string String to namespace
+     * @return string
+     */
+    public function addNamespace($string)
+    {
+        if (is_array($string)) {
+            foreach ($string as &$str) {
+                $str = $this->addNamespace($str);
+            }
 
-		return $string;
-	}
+            return $string;
+        }
 
-	/**
-	 * Dynamically pass calls to the Predis.
-	 *
-	 * @param  string  $method     Method to call
-	 * @param  array   $parameters Arguments to send to method
-	 * @return mixed
-	 */
-	public function __call($method, $parameters) {
-		if (in_array($method, $this->keyCommands)) {
-			$parameters[0] = $this->addNamespace($parameters[0]);
-		}
+        if (strpos($string, $this->namespace) !== 0) {
+            $string = $this->namespace . $string;
+        }
 
-		// try {
-			return call_user_func_array(array($this->redis, $method), $parameters);
+        return $string;
+    }
 
-		// } catch (\Exception $e) {
-		// 	return false;
-		// }
-	}
+    /**
+     * Remove Redis namespace from string
+     *
+     * @param  string $string String to de-namespace
+     * @return string
+     */
+    public function removeNamespace($string)
+    {
+        $prefix = $this->namespace;
 
+        if (substr($string, 0, strlen($prefix)) == $prefix) {
+            $string = substr($string, strlen($prefix), strlen($string));
+        }
+
+        return $string;
+    }
+
+    /**
+     * Dynamically pass calls to the Predis.
+     *
+     * @param  string $method     Method to call
+     * @param  array  $parameters Arguments to send to method
+     * @return mixed
+     */
+    public function __call($method, $parameters)
+    {
+        if (in_array($method, $this->keyCommands)) {
+            $parameters[0] = $this->addNamespace($parameters[0]);
+        }
+
+        // try {
+        return call_user_func_array(array($this->redis, $method), $parameters);
+
+        // } catch (\Exception $e) {
+        //     return false;
+        // }
+    }
 }
