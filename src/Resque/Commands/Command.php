@@ -206,7 +206,8 @@ class Command extends \Symfony\Component\Console\Command\Command
     protected function parseConfig($config, $defaults)
     {
         if (array_key_exists('config', $config)) {
-            $configFileData = Resque::readConfigFile($config['config']);
+            Resque::loadConfig($config['config']);
+            $configFileData = Resque::getConfig();
 
             foreach ($config as $key => &$value) {
                 // If the config value is equal to the default value set in the command then
