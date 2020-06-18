@@ -320,6 +320,8 @@ class Worker
 
                 $this->shutdown();
             } elseif ($this->child > 0) {
+                $this->redis->disconnect();
+
                 // In parent if $pid > 0 since pcntl_fork returns process id of child
                 Event::fire(Event::WORKER_FORK_PARENT, array($this, $job, $this->child));
 
