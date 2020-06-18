@@ -52,6 +52,11 @@ class Redis
     const DEFAULT_RW_TIMEOUT = 60;
 
     /**
+     * Default connection persistence
+     */
+    const DEFAULT_PERSISTENT = false;
+
+    /**
      * Default Redis option for using phpiredis or not
      */
     const DEFAULT_PHPIREDIS = false;
@@ -66,6 +71,7 @@ class Redis
         'namespace'  => self::DEFAULT_NS,
         'password'   => self::DEFAULT_PASSWORD,
         'rw_timeout' => self::DEFAULT_RW_TIMEOUT,
+        'persistent' => self::DEFAULT_PERSISTENT,
         'phpiredis'  => self::DEFAULT_PHPIREDIS,
     );
 
@@ -220,6 +226,11 @@ class Redis
             // setup read/write timeout
             if (!empty($config['rw_timeout'])) {
                 $predisParams['read_write_timeout'] = $config['rw_timeout'];
+            }
+
+            // setup persistent connection
+            if (!empty($config['persistent'])) {
+                $predisParams['persistent'] = (bool) $config['persistent'];
             }
 
             // setup predis client options
